@@ -9,22 +9,12 @@ import {
   Heart,
   Info,
   IndianRupee,
+  Building,
+  Star,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-export interface Job {
-  id: string;
-  title: string;
-  company: string;
-  companyLogo?: string;
-  location: string;
-  postedDate: string;
-  salaryRange: string;
-  jobType: string;
-  skills: string[];
-  matchScore: number;
-  description: string;
-}
+import { formatSalary, getCompanyInitials } from "@/utils/jobUtils";
+import { Job } from "@/types/jobs";
 
 interface JobCardProps {
   job: Job;
@@ -33,15 +23,6 @@ interface JobCardProps {
   onViewDetails: () => void;
   style?: React.CSSProperties;
 }
-
-const formatDate = (dateStr: string) => {
-  const date = new Date(dateStr);
-  return date.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-};
 
 const JobCard = ({
   job,
@@ -61,7 +42,6 @@ const JobCard = ({
     null
   );
 
-  // --- Swipe vanish handler ---
   const triggerVanish = (direction: "left" | "right") => {
     setSwipeDirection(direction);
     setIsVisible(false);
@@ -98,29 +78,23 @@ const JobCard = ({
   };
   const handleMouseUp = () => endDrag();
 
-  // --- Touch Events with scroll fix ---
+  // --- Touch Events ---
   const handleTouchStart = (e: React.TouchEvent) => {
     const touch = e.touches[0];
     setDragStart({ x: touch.clientX, y: touch.clientY });
     setIsDragging(true);
   };
-
   const handleTouchMove = (e: React.TouchEvent) => {
     if (!dragStart || !isDragging) return;
-
     const touch = e.touches[0];
     const deltaX = touch.clientX - dragStart.x;
     const deltaY = touch.clientY - dragStart.y;
-
-    // ✅ Allow vertical scrolling if movement is mostly vertical
     if (Math.abs(deltaY) > Math.abs(deltaX)) {
       resetPosition();
       return;
     }
-
     setDragOffset({ x: deltaX, y: deltaY });
   };
-
   const handleTouchEnd = () => endDrag();
 
   const rotation = dragOffset.x * 0.1;
@@ -150,7 +124,7 @@ const JobCard = ({
             "relative glass-strong rounded-2xl overflow-hidden cursor-grab active:cursor-grabbing select-none transition-smooth hover:shadow-xl w-full max-w-md mx-auto touch-none",
             isDragging && "shadow-xl scale-105"
           )}
-          style={{ ...style, touchAction: "pan-y" }} // ✅ allows vertical scroll
+          style={{ ...style, touchAction: "pan-y" }}
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
@@ -175,8 +149,9 @@ const JobCard = ({
 
           {/* Card Content */}
           <div className="p-4 sm:p-6">
+            {/* Header */}
             <div className="flex items-start gap-3 sm:gap-4 mb-3 sm:mb-4">
-              <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl bg-secondary flex items-center justify-center text-xl sm:text-2xl font-bold text-primary flex-shrink-0 shadow-md">
+              <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl bg-secondary flex items-center justify-center text-xl sm:text-2xl font-bold text-primary flex-shrink-0 shadow-md overflow-hidden">
                 {job.companyLogo ? (
                   <img
                     src={job.companyLogo}
@@ -184,7 +159,9 @@ const JobCard = ({
                     className="w-full h-full object-cover rounded-xl"
                   />
                 ) : (
-                  job.company.charAt(0)
+                  <span className="text-lg sm:text-xl font-semibold text-primary/90">
+                    {getCompanyInitials(job.company)}
+                  </span>
                 )}
               </div>
 
@@ -192,13 +169,14 @@ const JobCard = ({
                 <h3 className="text-lg sm:text-xl font-semibold mb-1 truncate">
                   {job.title}
                 </h3>
-                <p className="text-muted-foreground text-sm truncate">
-                  {job.company}
+                <p className="text-muted-foreground text-sm truncate flex items-center gap-1">
+                  <Building className="h-4 w-4" /> {job.company}
                 </p>
               </div>
 
-              <Badge className="bg-success/10 text-success hover:bg-success/20 border-success/20 text-xs sm:text-sm">
-                {job.matchScore}% Match
+              <Badge className="bg-primary/10 text-primary border-primary/20 text-xs sm:text-sm">
+                <Star className="h-3 w-3 mr-1 inline-block" />{" "}
+                {job.rating.toFixed(1)}
               </Badge>
             </div>
 
@@ -210,7 +188,7 @@ const JobCard = ({
               </div>
               <div className="flex items-center gap-1.5 text-xs sm:text-sm text-muted-foreground truncate">
                 <IndianRupee className="h-4 w-4" />
-                {job.salaryRange}
+                {formatSalary(job.salary)}
               </div>
               <div className="flex items-center gap-1.5 text-xs sm:text-sm text-muted-foreground truncate">
                 <Briefcase className="h-4 w-4" />
@@ -218,31 +196,31 @@ const JobCard = ({
               </div>
               <div className="flex items-center gap-1.5 text-xs sm:text-sm text-muted-foreground truncate">
                 <Clock className="h-4 w-4" />
-                {formatDate(job.postedDate)}
+                {job.postedAgo}
               </div>
             </div>
 
-            {/* Skills */}
+            {/* Benefits & Qualifications */}
             <div className="flex flex-wrap gap-1.5 sm:gap-2 mb-4">
-              {job.skills.slice(0, 4).map((skill) => (
+              {job.benefits.slice(0, 3).map((benefit) => (
                 <Badge
-                  key={skill}
+                  key={benefit}
                   variant="secondary"
                   className="text-xs sm:text-sm py-1"
                 >
-                  {skill}
+                  {benefit}
                 </Badge>
               ))}
-              {job.skills.length > 4 && (
+              {job.qualifications.length > 0 && (
                 <Badge variant="secondary" className="text-xs sm:text-sm py-1">
-                  +{job.skills.length - 4} more
+                  {job.qualifications[0]}
                 </Badge>
               )}
             </div>
 
-            {/* Description */}
+            {/* Short Description */}
             <p className="text-xs sm:text-sm text-muted-foreground line-clamp-3 mb-5">
-              {job.description}
+              {job.fullDescription.description[0]}
             </p>
 
             {/* Actions */}
