@@ -35,19 +35,43 @@ export const getMatchColor = (score: number): string => {
 };
 
 /**
- * Returns initials for a company name.
- * Example: "TechCorp Pvt Ltd" → "TP"
+ * Returns the initials of a company name (e.g., "Tech Hire" → "TH").
  */
-export function getCompanyInitials(name: string): string {
-  if (!name) return "?";
+export const getCompanyInitials = (companyName: string): string => {
+  if (!companyName) return "?";
+  const words = companyName.split(" ");
+  const initials = words
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase() || "")
+    .join("");
+  return initials || companyName[0].toUpperCase();
+};
 
-  const words = name.trim().split(" ").filter(Boolean);
+/**
+ * Returns a bright gradient color style for company initials,
+ * based on the hash of the company name.
+ */
+export const getCompanyColorStyle = (companyName: string): React.CSSProperties => {
+  const colors = [
+    ["#ff9a9e", "#fad0c4"],
+    ["#a18cd1", "#fbc2eb"],
+    ["#84fab0", "#8fd3f4"],
+    ["#ffecd2", "#fcb69f"],
+    ["#cfd9df", "#e2ebf0"],
+    ["#f6d365", "#fda085"],
+    ["#96e6a1", "#d4fc79"],
+    ["#ff6a88", "#ff99ac"],
+    ["#a1c4fd", "#c2e9fb"],
+  ];
 
-  if (words.length === 1) {
-    // If single word like "DesignHub" → "D"
-    return words[0].charAt(0).toUpperCase();
-  }
+  const hash = companyName
+    .split("")
+    .reduce((acc, c) => acc + c.charCodeAt(0), 0);
 
-  // Multiple words → first letter of first two
-  return (words[0].charAt(0) + words[1].charAt(0)).toUpperCase();
-}
+  const [start, end] = colors[hash % colors.length];
+
+  return {
+    background: `linear-gradient(135deg, ${start}, ${end})`,
+    color: "#fff",
+  };
+};

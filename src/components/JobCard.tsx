@@ -14,7 +14,11 @@ import {
   Star,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { formatSalary, getCompanyInitials } from "@/utils/jobUtils";
+import {
+  formatSalary,
+  getCompanyColorStyle,
+  getCompanyInitials,
+} from "@/utils/jobUtils";
 import { Job } from "@/types/jobs";
 
 interface JobCardProps {
@@ -32,12 +36,16 @@ const JobCard = ({
   onViewDetails,
   style,
 }: JobCardProps) => {
-  const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null);
+  const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(
+    null
+  );
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [liked, setLiked] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
-  const [swipeDirection, setSwipeDirection] = useState<"left" | "right" | null>(null);
+  const [swipeDirection, setSwipeDirection] = useState<
+    "left" | "right" | null
+  >(null);
 
   const triggerVanish = (direction: "left" | "right") => {
     setSwipeDirection(direction);
@@ -67,14 +75,12 @@ const JobCard = ({
     setDragStart({ x: e.clientX, y: e.clientY });
     setIsDragging(true);
   };
-
   const handleMouseMove = (e: React.MouseEvent) => {
     if (!dragStart || !isDragging) return;
     const deltaX = e.clientX - dragStart.x;
     const deltaY = e.clientY - dragStart.y;
     setDragOffset({ x: deltaX, y: deltaY });
   };
-
   const handleMouseUp = () => endDrag();
 
   // Touch Events
@@ -83,7 +89,6 @@ const JobCard = ({
     setDragStart({ x: touch.clientX, y: touch.clientY });
     setIsDragging(true);
   };
-
   const handleTouchMove = (e: React.TouchEvent) => {
     if (!dragStart || !isDragging) return;
     const touch = e.touches[0];
@@ -95,7 +100,6 @@ const JobCard = ({
     }
     setDragOffset({ x: deltaX, y: deltaY });
   };
-
   const handleTouchEnd = () => endDrag();
 
   const rotation = dragOffset.x * 0.1;
@@ -152,18 +156,28 @@ const JobCard = ({
           <div className="p-4 sm:p-6">
             {/* Header */}
             <div className="flex items-start gap-3 sm:gap-4 mb-3 sm:mb-4">
-              <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl bg-secondary flex items-center justify-center text-xl sm:text-2xl font-bold text-primary flex-shrink-0 shadow-md overflow-hidden">
+              <div className="relative w-14 h-14 sm:w-16 sm:h-16 rounded-xl flex items-center justify-center font-bold text-xl sm:text-2xl text-white flex-shrink-0 shadow-md overflow-hidden">
                 {job.companyLogo ? (
                   <img
                     src={job.companyLogo}
                     alt={job.company}
                     className="w-full h-full object-cover rounded-xl"
+                    onError={(e) => {
+                      const target = e.currentTarget;
+                      target.style.display = "none";
+                      const fallback = target.nextElementSibling as HTMLElement;
+                      if (fallback) fallback.style.display = "flex";
+                    }}
                   />
-                ) : (
-                  <span className="text-lg sm:text-xl font-semibold text-primary/90">
-                    {getCompanyInitials(job.company)}
-                  </span>
-                )}
+                ) : null}
+
+                {/* Gradient fallback initials */}
+                <div
+                  className="absolute inset-0 flex items-center justify-center uppercase"
+                  style={getCompanyColorStyle(job.company)}
+                >
+                  {getCompanyInitials(job.company)}
+                </div>
               </div>
 
               <div className="flex-1 min-w-0">
@@ -176,9 +190,9 @@ const JobCard = ({
                 </p>
               </div>
 
-              {/* Rating badge - positioned lower for better visibility */}
               <Badge className="bg-primary/10 text-primary border-primary/20 text-[11px] sm:text-sm mt-8 sm:mt-10 px-2 sm:px-3 py-0.5 sm:py-1 rounded-md flex-shrink-0">
-                <Star className="h-3 w-3 mr-1 inline-block" /> {job.rating.toFixed(1)}
+                <Star className="h-3 w-3 mr-1 inline-block" />{" "}
+                {job.rating.toFixed(1)}
               </Badge>
             </div>
 
@@ -254,7 +268,7 @@ const JobCard = ({
               </Button>
             </div>
 
-            {/* Drag instruction - only show when not dragging */}
+            {/* Drag instruction */}
             {!isDragging && (
               <div className="absolute bottom-2 left-1/2 -translate-x-1/2 text-[10px] sm:text-xs text-muted-foreground text-center whitespace-nowrap pointer-events-none">
                 Drag or swipe to interact
