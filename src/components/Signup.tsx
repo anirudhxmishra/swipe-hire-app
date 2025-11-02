@@ -7,10 +7,20 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Eye, EyeOff, Mail, Lock, User as UserIcon, Phone } from "lucide-react";
 import { toast } from "sonner";
 import logo from "@/assets/logo.png";
-import googleLogo from "@/assets/googlelogo.png"; // ✅ Add Google logo to your assets
+import { GoogleLogin, CredentialResponse } from "@react-oauth/google";
+import { jwtDecode } from "jwt-decode"; // ✅ proper named import
+import { useAuth } from "@/hooks/useAuth"; // ✅ reuse auth hook
+
+interface GoogleUser {
+  name?: string;
+  email?: string;
+  picture?: string;
+  sub?: string;
+}
 
 const Signup = () => {
   const navigate = useNavigate();
+  const { handleLoginSuccess } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -71,8 +81,23 @@ const Signup = () => {
     }
   };
 
-  const handleOAuthSignup = (provider: string) => {
-    toast.info(`${provider} signup coming soon!`);
+  const handleGoogleSignup = (response: CredentialResponse) => {
+    try {
+      if (!response.credential) throw new Error("Missing Google credential");
+      const decoded = jwtDecode<GoogleUser>(response.credential);
+      const user = {
+        id: decoded.sub || "unknown",
+        name: decoded.name || "User",
+        email: decoded.email || "unknown",
+        avatar: decoded.picture,
+      };
+      handleLoginSuccess(response.credential, user);
+      toast.success(`Welcome, ${user.name}!`);
+      navigate("/onboarding");
+    } catch (err) {
+      console.error("Google signup error:", err);
+      toast.error("Google signup failed. Please try again.");
+    }
   };
 
   return (
@@ -228,9 +253,9 @@ const Signup = () => {
               <Label htmlFor="terms" className="leading-relaxed">
                 I agree to the{" "}
                 <Button variant="link" className="h-auto p-0 text-xs sm:text-sm">
-                  Terms
+                  Terms of Service
                 </Button>{" "}
-                &{" "}
+                and{" "}
                 <Button variant="link" className="h-auto p-0 text-xs sm:text-sm">
                   Privacy Policy
                 </Button>
@@ -255,16 +280,17 @@ const Signup = () => {
             </div>
           </div>
 
-          {/* Google Signup Only */}
-          <Button
-            variant="outline"
-            onClick={() => handleOAuthSignup("Google")}
-            className="w-full flex items-center justify-center gap-3 font-medium text-sm sm:text-base"
-          >
-            <img src={googleLogo} alt="Google" className="w-5 h-5" />
-            Continue with Google
-          </Button>
+          {/* Google Signup */}
+          <div className="flex justify-center mt-4">
+            <GoogleLogin
+              onSuccess={handleGoogleSignup}
+              onError={() => toast.error("Google signup failed")}
+              shape="pill"
+              width="280"
+            />
+          </div>
 
+          {/* Footer */}
           <p className="text-center text-xs sm:text-sm text-muted-foreground mt-6">
             Already have an account?{" "}
             <Button
@@ -275,6 +301,19 @@ const Signup = () => {
               Login
             </Button>
           </p>
+
+          {/* Professional Terms Footer */}
+          <div className="text-center mt-6 text-[11px] sm:text-xs text-muted-foreground">
+            By signing up, you acknowledge that you have read and agree to our{" "}
+            <Button variant="link" className="h-auto p-0 text-[11px] sm:text-xs">
+              Terms of Service
+            </Button>{" "}
+            and{" "}
+            <Button variant="link" className="h-auto p-0 text-[11px] sm:text-xs">
+              Privacy Policy
+            </Button>
+            . Your personal data will be handled responsibly in accordance with our policies.
+          </div>
         </div>
       </div>
     </div>
