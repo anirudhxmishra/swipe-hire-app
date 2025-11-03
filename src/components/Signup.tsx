@@ -4,12 +4,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Eye, EyeOff, Mail, Lock, User as UserIcon, Phone } from "lucide-react";
+import { Eye, EyeOff, Mail, Lock, User as UserIcon, Phone, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import logo from "@/assets/logo.png";
 import { GoogleLogin, CredentialResponse } from "@react-oauth/google";
-import { jwtDecode } from "jwt-decode"; // ✅ proper named import
-import { useAuth } from "@/hooks/useAuth"; // ✅ reuse auth hook
+import { jwtDecode } from "jwt-decode";
+import { useAuth } from "@/hooks/useAuth";
 
 interface GoogleUser {
   name?: string;
@@ -18,12 +18,22 @@ interface GoogleUser {
   sub?: string;
 }
 
+interface ValidationErrors {
+  full_name?: string;
+  email?: string;
+  phone?: string;
+  password?: string;
+  confirm_password?: string;
+}
+
 const Signup = () => {
   const navigate = useNavigate();
   const { handleLoginSuccess } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState<ValidationErrors>({});
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
 
   const [formData, setFormData] = useState({
     full_name: "",
@@ -34,11 +44,96 @@ const Signup = () => {
     accept_terms: false,
   });
 
+  // Validation functions
+  const validateEmail = (email: string): string | undefined => {
+    if (!email) return "Email is required";
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) return "Please enter a valid email address";
+    return undefined;
+  };
+
+  const validatePassword = (password: string): string | undefined => {
+    if (!password) return "Password is required";
+    if (password.length < 6) return "Password must be at least 6 characters long";
+    return undefined;
+  };
+
+  const validateConfirmPassword = (confirmPassword: string, password: string): string | undefined => {
+    if (!confirmPassword) return "Please confirm your password";
+    if (confirmPassword !== password) return "Passwords do not match";
+    return undefined;
+  };
+
+  const validatePhone = (phone: string): string | undefined => {
+    if (!phone) return "Phone number is required";
+    const phoneRegex = /^\+91\d{10}$/;
+    if (!phoneRegex.test(phone)) {
+      return "Phone must start with +91 followed by 10 digits (e.g., +919876543210)";
+    }
+    return undefined;
+  };
+
+  const validateFullName = (name: string): string | undefined => {
+    if (!name) return "Full name is required";
+    if (name.trim().length < 2) return "Name must be at least 2 characters";
+    return undefined;
+  };
+
+  // Validate all fields
+  const validateForm = (): boolean => {
+    const newErrors: ValidationErrors = {
+      full_name: validateFullName(formData.full_name),
+      email: validateEmail(formData.email),
+      phone: validatePhone(formData.phone),
+      password: validatePassword(formData.password),
+      confirm_password: validateConfirmPassword(formData.confirm_password, formData.password),
+    };
+
+    setErrors(newErrors);
+    return !Object.values(newErrors).some(error => error !== undefined);
+  };
+
+  // Handle field blur for real-time validation
+  const handleBlur = (field: keyof typeof formData) => {
+    setTouched({ ...touched, [field]: true });
+    
+    let error: string | undefined;
+    switch (field) {
+      case "full_name":
+        error = validateFullName(formData.full_name);
+        break;
+      case "email":
+        error = validateEmail(formData.email);
+        break;
+      case "phone":
+        error = validatePhone(formData.phone);
+        break;
+      case "password":
+        error = validatePassword(formData.password);
+        break;
+      case "confirm_password":
+        error = validateConfirmPassword(formData.confirm_password, formData.password);
+        break;
+    }
+    
+    setErrors({ ...errors, [field]: error });
+  };
+
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (formData.password !== formData.confirm_password) {
-      toast.error("Passwords do not match");
+    // Mark all fields as touched
+    setTouched({
+      full_name: true,
+      email: true,
+      phone: true,
+      password: true,
+      confirm_password: true,
+    });
+
+    // Validate form
+    if (!validateForm()) {
+      toast.error("Please fix the errors in the form");
       return;
     }
 
@@ -131,9 +226,16 @@ const Signup = () => {
                   onChange={(e) =>
                     setFormData({ ...formData, full_name: e.target.value })
                   }
-                  className="pl-10 text-sm"
+                  onBlur={() => handleBlur("full_name")}
+                  className={`pl-10 text-sm ${touched.full_name && errors.full_name ? 'border-red-500' : ''}`}
                   required
                 />
+                {touched.full_name && errors.full_name && (
+                  <div className="flex items-center gap-1 mt-1 text-xs text-red-500">
+                    <AlertCircle className="w-3 h-3" />
+                    <span>{errors.full_name}</span>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -150,9 +252,16 @@ const Signup = () => {
                   onChange={(e) =>
                     setFormData({ ...formData, email: e.target.value })
                   }
-                  className="pl-10 text-sm"
+                  onBlur={() => handleBlur("email")}
+                  className={`pl-10 text-sm ${touched.email && errors.email ? 'border-red-500' : ''}`}
                   required
                 />
+                {touched.email && errors.email && (
+                  <div className="flex items-center gap-1 mt-1 text-xs text-red-500">
+                    <AlertCircle className="w-3 h-3" />
+                    <span>{errors.email}</span>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -164,14 +273,21 @@ const Signup = () => {
                 <Input
                   id="phone"
                   type="tel"
-                  placeholder="+1 234 567 890"
+                  placeholder="+919876543210"
                   value={formData.phone}
                   onChange={(e) =>
                     setFormData({ ...formData, phone: e.target.value })
                   }
-                  className="pl-10 text-sm"
+                  onBlur={() => handleBlur("phone")}
+                  className={`pl-10 text-sm ${touched.phone && errors.phone ? 'border-red-500' : ''}`}
                   required
                 />
+                {touched.phone && errors.phone && (
+                  <div className="flex items-center gap-1 mt-1 text-xs text-red-500">
+                    <AlertCircle className="w-3 h-3" />
+                    <span>{errors.phone}</span>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -188,7 +304,8 @@ const Signup = () => {
                   onChange={(e) =>
                     setFormData({ ...formData, password: e.target.value })
                   }
-                  className="pl-10 pr-10 text-sm"
+                  onBlur={() => handleBlur("password")}
+                  className={`pl-10 pr-10 text-sm ${touched.password && errors.password ? 'border-red-500' : ''}`}
                   required
                 />
                 <button
@@ -202,6 +319,12 @@ const Signup = () => {
                     <Eye className="w-5 h-5" />
                   )}
                 </button>
+                {touched.password && errors.password && (
+                  <div className="flex items-center gap-1 mt-1 text-xs text-red-500">
+                    <AlertCircle className="w-3 h-3" />
+                    <span>{errors.password}</span>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -221,7 +344,8 @@ const Signup = () => {
                       confirm_password: e.target.value,
                     })
                   }
-                  className="pl-10 pr-10 text-sm"
+                  onBlur={() => handleBlur("confirm_password")}
+                  className={`pl-10 pr-10 text-sm ${touched.confirm_password && errors.confirm_password ? 'border-red-500' : ''}`}
                   required
                 />
                 <button
@@ -237,6 +361,12 @@ const Signup = () => {
                     <Eye className="w-5 h-5" />
                   )}
                 </button>
+                {touched.confirm_password && errors.confirm_password && (
+                  <div className="flex items-center gap-1 mt-1 text-xs text-red-500">
+                    <AlertCircle className="w-3 h-3" />
+                    <span>{errors.confirm_password}</span>
+                  </div>
+                )}
               </div>
             </div>
 
