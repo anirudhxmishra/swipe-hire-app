@@ -90,13 +90,12 @@ const Signup = () => {
     };
 
     setErrors(newErrors);
-    return !Object.values(newErrors).some(error => error !== undefined);
+    return !Object.values(newErrors).some((error) => error !== undefined);
   };
 
-  // Handle field blur for real-time validation
   const handleBlur = (field: keyof typeof formData) => {
     setTouched({ ...touched, [field]: true });
-    
+
     let error: string | undefined;
     switch (field) {
       case "full_name":
@@ -115,14 +114,13 @@ const Signup = () => {
         error = validateConfirmPassword(formData.confirm_password, formData.password);
         break;
     }
-    
+
     setErrors({ ...errors, [field]: error });
   };
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Mark all fields as touched
     setTouched({
       full_name: true,
       email: true,
@@ -131,7 +129,6 @@ const Signup = () => {
       confirm_password: true,
     });
 
-    // Validate form
     if (!validateForm()) {
       toast.error("Please fix the errors in the form");
       return;
@@ -142,35 +139,34 @@ const Signup = () => {
       return;
     }
 
-    const userProfile = {
-      user_id: crypto.randomUUID(),
-      timestamp: new Date().toISOString(),
-      onboarding_step: "basic_info",
-      basic_info: {
-        full_name: formData.full_name,
-        email: formData.email,
-        phone: formData.phone,
-        signup_method: "email",
-      },
-      metadata: {
-        profile_completion: 25,
-        steps_completed: ["basic_info"],
-        device_type: /Mobi|Android/i.test(navigator.userAgent)
-          ? "mobile"
-          : "desktop",
-        user_agent: navigator.userAgent,
-        ip_address: "auto-fetch-in-backend",
-        referral_source: "organic",
-      },
+    // ✅ Backend DTO
+    const registrationDto = {
+      fullName: formData.full_name,
+      email: formData.email,
+      phoneNumber: formData.phone,
+      password: formData.password,
+      confirmPassword: formData.confirm_password,
     };
 
     try {
       setLoading(true);
-      console.log("🧠 Signup Data:", userProfile);
-      toast.success("Account created successfully!");
-      navigate("/onboarding");
+
+      const response = await fetch("http://localhost:8096/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(registrationDto),
+        credentials: "include", // ✅ ensures cookies (like JSESSIONID) are stored
+      });
+
+      if (response.ok) {
+        toast.success("Account created successfully!");
+        navigate("/onboarding");
+      } else {
+        const errorText = await response.text();
+        toast.error(`Signup failed: ${errorText}`);
+      }
     } catch (err) {
-      toast.error("Signup failed. Try again.");
+      toast.error("Signup failed. Server not reachable.");
     } finally {
       setLoading(false);
     }
@@ -223,11 +219,11 @@ const Signup = () => {
                   id="full_name"
                   placeholder="John Doe"
                   value={formData.full_name}
-                  onChange={(e) =>
-                    setFormData({ ...formData, full_name: e.target.value })
-                  }
+                  onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
                   onBlur={() => handleBlur("full_name")}
-                  className={`pl-10 text-sm ${touched.full_name && errors.full_name ? 'border-red-500' : ''}`}
+                  className={`pl-10 text-sm ${
+                    touched.full_name && errors.full_name ? "border-red-500" : ""
+                  }`}
                   required
                 />
                 {touched.full_name && errors.full_name && (
@@ -249,11 +245,11 @@ const Signup = () => {
                   type="email"
                   placeholder="you@example.com"
                   value={formData.email}
-                  onChange={(e) =>
-                    setFormData({ ...formData, email: e.target.value })
-                  }
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   onBlur={() => handleBlur("email")}
-                  className={`pl-10 text-sm ${touched.email && errors.email ? 'border-red-500' : ''}`}
+                  className={`pl-10 text-sm ${
+                    touched.email && errors.email ? "border-red-500" : ""
+                  }`}
                   required
                 />
                 {touched.email && errors.email && (
@@ -275,11 +271,11 @@ const Signup = () => {
                   type="tel"
                   placeholder="+919876543210"
                   value={formData.phone}
-                  onChange={(e) =>
-                    setFormData({ ...formData, phone: e.target.value })
-                  }
+                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                   onBlur={() => handleBlur("phone")}
-                  className={`pl-10 text-sm ${touched.phone && errors.phone ? 'border-red-500' : ''}`}
+                  className={`pl-10 text-sm ${
+                    touched.phone && errors.phone ? "border-red-500" : ""
+                  }`}
                   required
                 />
                 {touched.phone && errors.phone && (
@@ -301,11 +297,11 @@ const Signup = () => {
                   type={showPassword ? "text" : "password"}
                   placeholder="••••••••"
                   value={formData.password}
-                  onChange={(e) =>
-                    setFormData({ ...formData, password: e.target.value })
-                  }
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                   onBlur={() => handleBlur("password")}
-                  className={`pl-10 pr-10 text-sm ${touched.password && errors.password ? 'border-red-500' : ''}`}
+                  className={`pl-10 pr-10 text-sm ${
+                    touched.password && errors.password ? "border-red-500" : ""
+                  }`}
                   required
                 />
                 <button
@@ -313,11 +309,7 @@ const Signup = () => {
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-3 text-muted-foreground hover:text-foreground transition"
                 >
-                  {showPassword ? (
-                    <EyeOff className="w-5 h-5" />
-                  ) : (
-                    <Eye className="w-5 h-5" />
-                  )}
+                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
                 {touched.password && errors.password && (
                   <div className="flex items-center gap-1 mt-1 text-xs text-red-500">
@@ -339,27 +331,22 @@ const Signup = () => {
                   placeholder="••••••••"
                   value={formData.confirm_password}
                   onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      confirm_password: e.target.value,
-                    })
+                    setFormData({ ...formData, confirm_password: e.target.value })
                   }
                   onBlur={() => handleBlur("confirm_password")}
-                  className={`pl-10 pr-10 text-sm ${touched.confirm_password && errors.confirm_password ? 'border-red-500' : ''}`}
+                  className={`pl-10 pr-10 text-sm ${
+                    touched.confirm_password && errors.confirm_password
+                      ? "border-red-500"
+                      : ""
+                  }`}
                   required
                 />
                 <button
                   type="button"
-                  onClick={() =>
-                    setShowConfirmPassword(!showConfirmPassword)
-                  }
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                   className="absolute right-3 top-3 text-muted-foreground hover:text-foreground transition"
                 >
-                  {showConfirmPassword ? (
-                    <EyeOff className="w-5 h-5" />
-                  ) : (
-                    <Eye className="w-5 h-5" />
-                  )}
+                  {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
                 {touched.confirm_password && errors.confirm_password && (
                   <div className="flex items-center gap-1 mt-1 text-xs text-red-500">
@@ -423,11 +410,7 @@ const Signup = () => {
           {/* Footer */}
           <p className="text-center text-xs sm:text-sm text-muted-foreground mt-6">
             Already have an account?{" "}
-            <Button
-              variant="link"
-              className="h-auto p-0"
-              onClick={() => navigate("/login")}
-            >
+            <Button variant="link" className="h-auto p-0" onClick={() => navigate("/login")}>
               Login
             </Button>
           </p>
