@@ -74,33 +74,50 @@ const Login = () => {
     setErrors({ ...errors, [field]: error });
   };
 
-  const handleLogin = (e: React.FormEvent) => {
+ const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    // Mark all fields as touched
     setTouched({ email: true, password: true });
 
-    // Validate form
     if (!validateForm()) {
       toast.error("Please fix the errors in the form");
       return;
     }
 
     setLoading(true);
+    const body = new URLSearchParams();
+    body.append("username", email);
+    body.append("password", password);
+    body.append("remember-me", String(rememberMe));
 
-    setTimeout(() => {
-      if (email && password) {
+    console.log("Attempting login:", body.toString());
+
+    try {
+      const response = await fetch("http://localhost:8096/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body,
+        credentials: "include",
+      });
+
+      console.log("Server responded with:", response.status, response.statusText);
+
+      if (response.ok) {
+        toast.success("Welcome back!");
         const hasOnboarded = localStorage.getItem("onboarding_completed");
-        const demoUser = { id: "1", name: "Demo User", email };
-        handleLoginSuccess("demo_token", demoUser);
+        const user = { id: "1", name: "User", email };
+        handleLoginSuccess("backend_token", user);
         navigate(hasOnboarded ? "/feed" : "/onboarding");
       } else {
-        toast.error("Invalid credentials");
+        toast.error("Login failed: Invalid email or password.");
       }
+    } catch (err) {
+      console.error("Network/CORS error:", err);
+      toast.error("Login failed. Server not reachable (CORS or network issue).");
+    } finally {
       setLoading(false);
-    }, 1000);
+    }
   };
-
+  
   const handleGoogleLogin = (response: CredentialResponse) => {
     try {
       if (!response.credential) throw new Error("Missing Google credential");

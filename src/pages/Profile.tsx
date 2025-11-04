@@ -32,74 +32,86 @@ import {
 } from "lucide-react";
 import { skillSuggestions } from "../constant";
 
-type UserLinks = Record<string, string>;
-
-interface User {
-  name: string;
+interface UserProfile {
+  fullName: string;
   email: string;
-  phone: string;
-  role: string;
-  location: string;
-  experience: string;
-  avatar: string;
-  skills: string[];
+  phoneNumber: string;
+  targetRole: string;
+  experienceYears: number;
   bio: string;
-  links: UserLinks;
-  resume: string;
+  skills: string[];
+  preferredLocation: string;
+  githubProfile: string;
+  linkedinProfile: string;
+  profilePictureUrl: string;
+  resumeUrl: string;
 }
 
 const Profile = () => {
   const navigate = useNavigate();
 
-  const [user, setUser] = useState<User>(() => {
-    const saved = localStorage.getItem("user_profile");
-    return (
-      JSON.parse(saved || "null") || {
-        name: "John Doe",
-        email: "john.doe@example.com",
-        phone: "+1 (555) 123-4567",
-        role: "Senior Full Stack Developer",
-        location: "San Francisco, CA",
-        experience: "5 years",
-        avatar: "",
-        skills: ["React", "Node.js", "TypeScript"],
-        bio: "Passionate full-stack developer building scalable web apps.",
-        links: {
-          github: "https://github.com/johndoe",
-          linkedin: "https://linkedin.com/in/johndoe",
-        },
-        resume: "",
-      }
-    );
-  });
-
+  const [user, setUser] = useState<UserProfile | null>(null);
+  const [loading, setLoading] = useState(true);
   const [activeModal, setActiveModal] = useState<null | "profile" | "skills" | "links" | "resume">(null);
-  const [editData, setEditData] = useState<Partial<User>>({});
+  const [editData, setEditData] = useState<Partial<UserProfile>>({});
 
+  // === Fetch profile from backend ===
   useEffect(() => {
-    localStorage.setItem("user_profile", JSON.stringify(user));
-  }, [user]);
+    const fetchProfileData = async () => {
+      try {
+        const response = await fetch("http://localhost:8096/api/profile/me", {
+          credentials: "include",
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setUser(data);
+        } else {
+          toast.error("Please log in to view your profile.");
+          navigate("/login");
+        }
+      } catch {
+        toast.error("Could not connect to the server.");
+        navigate("/login");
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchProfileData();
+  }, [navigate]);
 
-  const handleSignOut = () => {
-    localStorage.removeItem("auth_token");
-    toast.success("Signed out successfully");
-    navigate("/");
+  // === Logout (backend) ===
+  const handleSignOut = async () => {
+    try {
+      const response = await fetch("http://localhost:8096/logout", {
+        method: "POST",
+        credentials: "include",
+      });
+      if (response.ok) {
+        toast.success("Signed out successfully");
+        navigate("/");
+      } else {
+        toast.error("Logout failed.");
+      }
+    } catch {
+      toast.error("Logout failed. Server not reachable.");
+    }
   };
 
   const getInitials = (name: string) =>
     name
-      .split(" ")
+      ?.split(" ")
       .map((n) => n[0])
       .join("")
       .toUpperCase();
 
   const openModal = (type: typeof activeModal) => {
-    setEditData(user);
+    if (user) setEditData(user);
     setActiveModal(type);
   };
 
   const handleSave = () => {
-    setUser((prev) => ({ ...prev, ...editData }));
+    if (!user) return;
+    setUser((prev) => ({ ...prev!, ...editData }));
     toast.success("Profile updated!");
     setActiveModal(null);
   };
@@ -122,13 +134,27 @@ const Profile = () => {
       toast.error("Only PDF or DOCX files allowed");
       return;
     }
-    setUser((prev) => ({ ...prev, resume: file.name }));
+    setUser((prev) => ({ ...prev!, resumeUrl: file.name }));
     toast.success("Resume uploaded successfully!");
   };
 
+  if (loading)
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        Loading profile...
+      </div>
+    );
+
+  if (!user)
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        Could not load profile.
+      </div>
+    );
+
   return (
     <div className="min-h-screen gradient-subtle pb-20">
-      {/* Header */}
+      {/* HEADER */}
       <header className="sticky top-0 z-50 glass backdrop-blur-xl border-b">
         <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -159,67 +185,33 @@ const Profile = () => {
             <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-start sm:gap-5">
               <div className="relative w-20 h-20 sm:w-24 sm:h-24">
                 <Avatar className="w-full h-full">
-                  <AvatarImage src={user.avatar} alt={user.name} />
+                  <AvatarImage src={user.profilePictureUrl} alt={user.fullName} />
                   <AvatarFallback className="text-xl sm:text-2xl font-semibold gradient-primary text-white">
-                    {getInitials(user.name)}
+                    {getInitials(user.fullName)}
                   </AvatarFallback>
                 </Avatar>
-
-                {/* Camera Icon Overlay */}
-                <label
-                  htmlFor="avatar-upload"
-                  className="absolute bottom-0 right-0 bg-primary text-white rounded-full p-1.5 cursor-pointer shadow-md hover:scale-105 transition-transform"
-                >
-                  <Edit className="w-4 h-4" />
-                </label>
-
-                {/* Hidden File Input */}
-                <input
-                  id="avatar-upload"
-                  type="file"
-                  accept="image/png,image/jpeg,image/jpg"
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) {
-                      const validTypes = ["image/png", "image/jpeg", "image/jpg"];
-                      if (!validTypes.includes(file.type)) {
-                        toast.error("Please upload a valid image (PNG, JPG, JPEG)");
-                        return;
-                      }
-
-                      const reader = new FileReader();
-                      reader.onload = () => {
-                        const imageUrl = reader.result as string;
-                        setUser((prev) => ({ ...prev, avatar: imageUrl }));
-                        toast.success("Profile picture updated!");
-                      };
-                      reader.readAsDataURL(file);
-                    }
-                  }}
-                />
               </div>
 
               <div className="text-center sm:text-left flex-1 w-full">
-                <h2 className="text-lg sm:text-xl font-bold">{user.name}</h2>
-                <p className="text-sm sm:text-base text-muted-foreground mt-0.5">{user.role}</p>
+                <h2 className="text-lg sm:text-xl font-bold">{user.fullName}</h2>
+                <p className="text-sm sm:text-base text-muted-foreground mt-0.5">{user.targetRole}</p>
                 <p className="text-xs sm:text-sm mt-2 leading-relaxed">{user.bio}</p>
                 <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2 sm:gap-3 mt-3 text-xs sm:text-sm text-muted-foreground">
-                  <div className="flex items-center justify-center sm:justify-start gap-1.5">
-                    <MapPin className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary flex-shrink-0" />
-                    <span className="truncate">{user.location}</span>
+                  <div className="flex items-center gap-1.5">
+                    <MapPin className="w-4 h-4 text-primary" />
+                    <span>{user.preferredLocation}</span>
                   </div>
-                  <div className="flex items-center justify-center sm:justify-start gap-1.5">
-                    <Briefcase className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary flex-shrink-0" />
-                    <span>{user.experience}</span>
+                  <div className="flex items-center gap-1.5">
+                    <Briefcase className="w-4 h-4 text-primary" />
+                    <span>{user.experienceYears} years</span>
                   </div>
-                  <div className="flex items-center justify-center sm:justify-start gap-1.5">
-                    <Mail className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary flex-shrink-0" />
-                    <span className="truncate">{user.email}</span>
+                  <div className="flex items-center gap-1.5">
+                    <Mail className="w-4 h-4 text-primary" />
+                    <span>{user.email}</span>
                   </div>
-                  <div className="flex items-center justify-center sm:justify-start gap-1.5">
-                    <Phone className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary flex-shrink-0" />
-                    <span>{user.phone}</span>
+                  <div className="flex items-center gap-1.5">
+                    <Phone className="w-4 h-4 text-primary" />
+                    <span>{user.phoneNumber}</span>
                   </div>
                 </div>
               </div>
@@ -250,25 +242,24 @@ const Profile = () => {
         <Card className="glass-strong animate-fade-in" style={{ animationDelay: "0.2s" }}>
           <CardHeader className="flex flex-row items-center justify-between px-4 py-3 sm:px-6 sm:py-4">
             <CardTitle className="text-base sm:text-lg">Links</CardTitle>
-            <Button variant="ghost" size="sm" onClick={() => openModal("links")} className="h-8 w-8 p-0">
-              <Edit className="w-4 h-4" />
-            </Button>
           </CardHeader>
           <CardContent className="px-4 pb-4 sm:px-6 sm:pb-5 space-y-2">
-            {Object.entries(user.links).map(([key, value]) => (
-              <Button
-                key={key}
-                variant="outline"
-                className="w-full justify-start gap-2 h-10 text-sm"
-                onClick={() => window.open(String(value), "_blank")}
-              >
-                {key === "github" && <Github className="w-4 h-4 flex-shrink-0" />}
-                {key === "linkedin" && <Linkedin className="w-4 h-4 flex-shrink-0" />}
-                {key === "leetcode" && <Code2 className="w-4 h-4 flex-shrink-0" />}
-                {key === "instagram" && <Instagram className="w-4 h-4 flex-shrink-0" />}
-                <span className="truncate">{String(value)}</span>
-              </Button>
-            ))}
+            <Button
+              variant="outline"
+              className="w-full justify-start gap-2 h-10 text-sm"
+              onClick={() => window.open(user.githubProfile, "_blank")}
+            >
+              <Github className="w-4 h-4 flex-shrink-0" />
+              <span>{user.githubProfile}</span>
+            </Button>
+            <Button
+              variant="outline"
+              className="w-full justify-start gap-2 h-10 text-sm"
+              onClick={() => window.open(user.linkedinProfile, "_blank")}
+            >
+              <Linkedin className="w-4 h-4 flex-shrink-0" />
+              <span>{user.linkedinProfile}</span>
+            </Button>
           </CardContent>
         </Card>
 
@@ -276,20 +267,17 @@ const Profile = () => {
         <Card className="glass-strong animate-fade-in" style={{ animationDelay: "0.3s" }}>
           <CardHeader className="flex flex-row items-center justify-between px-4 py-3 sm:px-6 sm:py-4">
             <CardTitle className="text-base sm:text-lg">Resume</CardTitle>
-            <Button variant="ghost" size="sm" onClick={() => openModal("resume")} className="h-8 w-8 p-0">
-              <Edit className="w-4 h-4" />
-            </Button>
           </CardHeader>
           <CardContent className="px-4 pb-4 sm:px-6 sm:pb-5">
-            {user.resume ? (
-              <div className="flex gap-2 sm:gap-3 items-center">
-                <FileText className="w-4 h-4 text-primary flex-shrink-0" />
-                <span className="text-sm truncate flex-1">{user.resume}</span>
+            {user.resumeUrl ? (
+              <div className="flex gap-2 items-center">
+                <FileText className="w-4 h-4 text-primary" />
+                <span className="text-sm truncate flex-1">{user.resumeUrl}</span>
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => toast.info("Viewing resume...")}
-                  className="h-8 text-xs sm:text-sm flex-shrink-0"
+                  onClick={() => window.open(user.resumeUrl, "_blank")}
+                  className="h-8 text-xs sm:text-sm"
                 >
                   View
                 </Button>
@@ -311,62 +299,53 @@ const Profile = () => {
         </Button>
       </main>
 
-      {/* ======= MODALS ======= */}
+      {/* ==== MODALS (same UI logic) ==== */}
       {/* Profile Edit */}
       <Dialog open={activeModal === "profile"} onOpenChange={() => setActiveModal(null)}>
         <DialogContent className="max-w-[calc(100%-2rem)] sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle className="text-base sm:text-lg">Edit Profile Details</DialogTitle>
+            <DialogTitle>Edit Profile Details</DialogTitle>
           </DialogHeader>
           <div className="space-y-3 mt-3">
             <Input
               placeholder="Full Name"
-              value={editData.name ?? ""}
-              onChange={(e) => setEditData({ ...editData, name: e.target.value })}
-              className="text-sm"
+              value={editData.fullName ?? ""}
+              onChange={(e) => setEditData({ ...editData, fullName: e.target.value })}
             />
             <Input
               placeholder="Role/Designation"
-              value={editData.role ?? ""}
-              onChange={(e) => setEditData({ ...editData, role: e.target.value })}
-              className="text-sm"
+              value={editData.targetRole ?? ""}
+              onChange={(e) => setEditData({ ...editData, targetRole: e.target.value })}
             />
             <Textarea
               placeholder="Short Bio"
               value={editData.bio ?? ""}
               onChange={(e) => setEditData({ ...editData, bio: e.target.value })}
-              className="text-sm min-h-[80px]"
             />
             <Input
               placeholder="Contact Number"
-              value={editData.phone ?? ""}
-              onChange={(e) => setEditData({ ...editData, phone: e.target.value })}
-              className="text-sm"
+              value={editData.phoneNumber ?? ""}
+              onChange={(e) => setEditData({ ...editData, phoneNumber: e.target.value })}
             />
             <Input
               placeholder="Email Address"
               value={editData.email ?? ""}
               onChange={(e) => setEditData({ ...editData, email: e.target.value })}
-              className="text-sm"
             />
             <Input
               placeholder="Location"
-              value={editData.location ?? ""}
-              onChange={(e) => setEditData({ ...editData, location: e.target.value })}
-              className="text-sm"
+              value={editData.preferredLocation ?? ""}
+              onChange={(e) => setEditData({ ...editData, preferredLocation: e.target.value })}
             />
             <Input
-              placeholder="Experience"
-              value={editData.experience ?? ""}
-              onChange={(e) => setEditData({ ...editData, experience: e.target.value })}
-              className="text-sm"
+              placeholder="Experience (years)"
+              value={String(editData.experienceYears ?? "")}
+              onChange={(e) => setEditData({ ...editData, experienceYears: Number(e.target.value) })}
             />
           </div>
           <DialogFooter className="mt-4 flex-col sm:flex-row gap-2">
-            <Button variant="outline" onClick={() => setActiveModal(null)} className="w-full sm:w-auto">
-              Cancel
-            </Button>
-            <Button onClick={handleSave} className="w-full sm:w-auto">Save</Button>
+            <Button variant="outline" onClick={() => setActiveModal(null)}>Cancel</Button>
+            <Button onClick={handleSave}>Save</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -375,7 +354,7 @@ const Profile = () => {
       <Dialog open={activeModal === "skills"} onOpenChange={() => setActiveModal(null)}>
         <DialogContent className="max-w-[calc(100%-2rem)] sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-base sm:text-lg">Edit Skills</DialogTitle>
+            <DialogTitle>Edit Skills</DialogTitle>
           </DialogHeader>
           <div className="flex flex-wrap gap-1.5 sm:gap-2 mt-3 max-h-[300px] overflow-y-auto">
             {skillSuggestions.map((s) => (
@@ -390,54 +369,8 @@ const Profile = () => {
             ))}
           </div>
           <DialogFooter className="mt-4 flex-col sm:flex-row gap-2">
-            <Button variant="outline" onClick={() => setActiveModal(null)} className="w-full sm:w-auto">
-              Cancel
-            </Button>
-            <Button onClick={handleSave} className="w-full sm:w-auto">Save</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Links Edit */}
-      <Dialog open={activeModal === "links"} onOpenChange={() => setActiveModal(null)}>
-        <DialogContent className="max-w-[calc(100%-2rem)] sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="text-base sm:text-lg">Edit Links</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3 mt-3">
-            {Object.entries(editData.links || {}).map(([key, value]) => (
-              <Input
-                key={key}
-                placeholder={`${key} URL`}
-                value={String(value)}
-                onChange={(e) =>
-                  setEditData({
-                    ...editData,
-                    links: { ...editData.links, [key]: e.target.value },
-                  })
-                }
-                className="text-sm"
-              />
-            ))}
-            <Button
-              variant="outline"
-              size="sm"
-              className="mt-2 flex items-center gap-2 h-9 text-xs sm:text-sm"
-              onClick={() =>
-                setEditData({
-                  ...editData,
-                  links: { ...editData.links, new: "" },
-                })
-              }
-            >
-              <Plus className="w-4 h-4" /> Add New Link
-            </Button>
-          </div>
-          <DialogFooter className="mt-4 flex-col sm:flex-row gap-2">
-            <Button variant="outline" onClick={() => setActiveModal(null)} className="w-full sm:w-auto">
-              Cancel
-            </Button>
-            <Button onClick={handleSave} className="w-full sm:w-auto">Save</Button>
+            <Button variant="outline" onClick={() => setActiveModal(null)}>Cancel</Button>
+            <Button onClick={handleSave}>Save</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -446,7 +379,7 @@ const Profile = () => {
       <Dialog open={activeModal === "resume"} onOpenChange={() => setActiveModal(null)}>
         <DialogContent className="max-w-[calc(100%-2rem)] sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle className="text-base sm:text-lg">Upload Resume</DialogTitle>
+            <DialogTitle>Upload Resume</DialogTitle>
           </DialogHeader>
           <div className="mt-3">
             <Input
@@ -456,13 +389,10 @@ const Profile = () => {
                 const file = e.target.files?.[0];
                 if (file) handleResumeUpload(file);
               }}
-              className="text-sm"
             />
           </div>
           <DialogFooter className="mt-4">
-            <Button variant="outline" onClick={() => setActiveModal(null)} className="w-full sm:w-auto">
-              Close
-            </Button>
+            <Button variant="outline" onClick={() => setActiveModal(null)}>Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
