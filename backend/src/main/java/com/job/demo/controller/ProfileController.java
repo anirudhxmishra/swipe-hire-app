@@ -32,13 +32,10 @@ public class ProfileController {
 
     @Autowired
     private UserRepository userRepository;
-
     @Autowired
     private UserProfileRepository userProfileRepository;
-
     @Autowired
     private SkillRepository skillRepository;
-
     @Autowired
     private FileStorageService fileStorageService;
 
@@ -48,15 +45,13 @@ public class ProfileController {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found: " + email));
 
-        UserProfile profile = user.getUserProfile();
+        UserProfile profile = userProfileRepository.findByUser(user).orElse(null);
         ProfileResponse response = new ProfileResponse();
-
-        // Populate User Data
+        
         response.setFullName(user.getFullName());
         response.setEmail(user.getEmail());
         response.setPhoneNumber(user.getPhoneNumber());
 
-        // Populate Profile Data (Handle Null Case)
         if (profile != null) {
             response.setTargetRole(profile.getTargetRole());
             response.setExperienceYears(profile.getExperienceYears());
@@ -64,22 +59,31 @@ public class ProfileController {
             response.setRemoteOnly(profile.isRemoteOnly());
             response.setPreferredLocation(profile.getPreferredLocation());
             response.setMinSalary(profile.getMinSalary());
-            response.setGithubProfile(profile.getGithubProfile());
-            response.setLinkedinProfile(profile.getLinkedinProfile());
             response.setProfilePictureUrl(profile.getProfilePictureUrl());
             response.setResumeUrl(profile.getResumeUrl());
+            
+            // --- MERGE LOGIC ---
+            Set<String> allLinks = new HashSet<>();
+            if (profile.getSocialLinks() != null) {
+                allLinks.addAll(profile.getSocialLinks());
+            }
+            if (profile.getGithubProfile() != null && !profile.getGithubProfile().isEmpty()) {
+                allLinks.add(profile.getGithubProfile());
+            }
+            if (profile.getLinkedinProfile() != null && !profile.getLinkedinProfile().isEmpty()) {
+                allLinks.add(profile.getLinkedinProfile());
+            }
+            response.setSocialLinks(allLinks);
+            // -------------------
 
             if (profile.getSkills() != null) {
-                response.setSkills(
-                        profile.getSkills().stream()
-                                .map(Skill::getName)
-                                .collect(Collectors.toSet())
-                );
+                response.setSkills(profile.getSkills().stream().map(Skill::getName).collect(Collectors.toSet()));
             } else {
                 response.setSkills(new HashSet<>());
             }
         } else {
             response.setSkills(new HashSet<>());
+            response.setSocialLinks(new HashSet<>());
         }
 
         return ResponseEntity.ok(response);
@@ -91,33 +95,38 @@ public class ProfileController {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found"));
 
-        // 1. Update User basic info
         if (request.getFullName() != null) user.setFullName(request.getFullName());
         if (request.getPhoneNumber() != null) user.setPhoneNumber(request.getPhoneNumber());
         userRepository.save(user);
 
-        // 2. Get or Create Profile
-        UserProfile profile = user.getUserProfile();
-        if (profile == null) {
-            profile = new UserProfile();
-            profile.setUser(user);
-        }
+        UserProfile profile = userProfileRepository.findByUser(user).orElse(new UserProfile());
+        if (profile.getUser() == null) profile.setUser(user);
 
-        // 3. Update Profile Fields
         profile.setBio(request.getBio());
         profile.setTargetRole(request.getTargetRole());
         profile.setExperienceYears(request.getExperienceYears());
         profile.setRemoteOnly(request.isRemoteOnly());
         profile.setPreferredLocation(request.getPreferredLocation());
         profile.setMinSalary(request.getMinSalary());
-        profile.setGithubProfile(request.getGithubProfile());
-        profile.setLinkedinProfile(request.getLinkedinProfile());
+        
+        // --- HANDLE LINKS (ADD & DELETE) ---
+        if (request.getSocialLinks() != null) {
+            if (profile.getSocialLinks() == null) {
+                profile.setSocialLinks(new HashSet<>());
+            }
+            // 1. Clear existing list (Deletes removed links)
+            profile.getSocialLinks().clear(); 
+            // 2. Add current list from Frontend
+            profile.getSocialLinks().addAll(request.getSocialLinks());
+            
+            // 3. Wipe old columns
+            profile.setGithubProfile(null);
+            profile.setLinkedinProfile(null);
+        }
 
-        // 4. Handle Skills (Fetch/Create and Link)
         if (request.getSkills() != null) {
             Set<Skill> newSkills = new HashSet<>();
             for (String skillName : request.getSkills()) {
-                // Normalize skill name to lowercase to prevent 'Java' vs 'java' duplicates
                 String normalizedName = skillName.trim(); 
                 Skill skill = skillRepository.findByName(normalizedName)
                         .orElseGet(() -> skillRepository.save(new Skill(normalizedName)));
@@ -129,44 +138,30 @@ public class ProfileController {
         userProfileRepository.save(profile);
         return ResponseEntity.ok("Profile updated successfully!");
     }
-
+    
     @PostMapping("/upload-photo")
     public ResponseEntity<?> uploadProfilePicture(Authentication authentication, @RequestParam("file") MultipartFile file) {
         if (file.isEmpty()) return ResponseEntity.badRequest().body("No file uploaded");
-
-        User user = userRepository.findByEmail(authentication.getName())
-                .orElseThrow(() -> new UsernameNotFoundException("User not found"));
-
-        UserProfile profile = user.getUserProfile();
-        if (profile == null) {
-            profile = new UserProfile();
-            profile.setUser(user);
-        }
-
+        User user = userRepository.findByEmail(authentication.getName()).orElseThrow(() -> new UsernameNotFoundException("User not found"));
+        UserProfile profile = userProfileRepository.findByUser(user).orElse(new UserProfile());
+        if(profile.getUser() == null) profile.setUser(user);
+        if(profile.getProfilePictureUrl() != null) fileStorageService.deleteFile(profile.getProfilePictureUrl());
         String fileUrl = fileStorageService.storeFile(file, "profile-pictures");
         profile.setProfilePictureUrl(fileUrl);
         userProfileRepository.save(profile);
-
         return ResponseEntity.ok(fileUrl);
     }
 
     @PostMapping("/upload-resume")
     public ResponseEntity<?> uploadResume(Authentication authentication, @RequestParam("file") MultipartFile file) {
         if (file.isEmpty()) return ResponseEntity.badRequest().body("No file uploaded");
-
-        User user = userRepository.findByEmail(authentication.getName())
-                .orElseThrow(() -> new UsernameNotFoundException("User not found"));
-
-        UserProfile profile = user.getUserProfile();
-        if (profile == null) {
-            profile = new UserProfile();
-            profile.setUser(user);
-        }
-
+        User user = userRepository.findByEmail(authentication.getName()).orElseThrow(() -> new UsernameNotFoundException("User not found"));
+        UserProfile profile = userProfileRepository.findByUser(user).orElse(new UserProfile());
+        if(profile.getUser() == null) profile.setUser(user);
+        if(profile.getResumeUrl() != null) fileStorageService.deleteFile(profile.getResumeUrl());
         String fileUrl = fileStorageService.storeFile(file, "resumes");
         profile.setResumeUrl(fileUrl);
         userProfileRepository.save(profile);
-
         return ResponseEntity.ok(fileUrl);
     }
 }

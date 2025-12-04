@@ -13,8 +13,10 @@ public class ProfileResponse {
     private boolean remoteOnly;
     private String preferredLocation;
     private int minSalary;
-    private String githubProfile;
-    private String linkedinProfile;
+    
+    // Sends the list back to UI
+    private Set<String> socialLinks;
+    
     private String profilePictureUrl;
     private String resumeUrl;
 
@@ -39,10 +41,10 @@ public class ProfileResponse {
     public void setPreferredLocation(String preferredLocation) { this.preferredLocation = preferredLocation; }
     public int getMinSalary() { return minSalary; }
     public void setMinSalary(int minSalary) { this.minSalary = minSalary; }
-    public String getGithubProfile() { return githubProfile; }
-    public void setGithubProfile(String githubProfile) { this.githubProfile = githubProfile; }
-    public String getLinkedinProfile() { return linkedinProfile; }
-    public void setLinkedinProfile(String linkedinProfile) { this.linkedinProfile = linkedinProfile; }
+    
+    public Set<String> getSocialLinks() { return socialLinks; }
+    public void setSocialLinks(Set<String> socialLinks) { this.socialLinks = socialLinks; }
+    
     public String getProfilePictureUrl() { return profilePictureUrl; }
     public void setProfilePictureUrl(String profilePictureUrl) { this.profilePictureUrl = profilePictureUrl; }
     public String getResumeUrl() { return resumeUrl; }

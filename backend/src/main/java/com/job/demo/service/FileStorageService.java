@@ -42,4 +42,21 @@ public class FileStorageService {
             throw new RuntimeException("Could not store file " + file.getOriginalFilename(), ex);
         }
     }
+
+    // --- THIS IS THE MISSING METHOD ---
+    public void deleteFile(String fileUrl) {
+        if (fileUrl == null || fileUrl.isEmpty()) return;
+        try {
+            // Extract filename from URL (e.g., "/uploads/profile-pictures/abc.jpg" -> "abc.jpg")
+            String filename = Paths.get(fileUrl).getFileName().toString();
+            
+            // Determine subdirectory based on URL
+            String subDir = fileUrl.contains("profile-pictures") ? "profile-pictures" : "resumes";
+            
+            Path filePath = this.uploadDir.resolve(subDir).resolve(filename);
+            Files.deleteIfExists(filePath);
+        } catch (IOException e) {
+            System.err.println("Warning: Could not delete old file: " + fileUrl);
+        }
+    }
 }
