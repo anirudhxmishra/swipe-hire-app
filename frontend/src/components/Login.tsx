@@ -10,6 +10,7 @@ import logo from "@/assets/logo.png";
 import { GoogleLogin, CredentialResponse } from "@react-oauth/google";
 import { jwtDecode } from "jwt-decode";
 import { useAuth } from "@/hooks/useAuth";
+import GoogleLoginButton from "./GoogleLoginButton";
 
 interface GoogleUser {
   name?: string;
@@ -247,13 +248,17 @@ const Login = () => {
           </div>
 
           {/* Google Login */}
-          <div className="flex justify-center mt-4">
+          {/* <div className="flex justify-center mt-4">
             <GoogleLogin
               onSuccess={handleGoogleLogin}
               onError={() => toast.error("Google login failed")}
               shape="pill"
               width="280"
             />
+          </div> */}
+
+          <div className="flex justify-center content-center ">
+            <GoogleLoginButton />
           </div>
 
           {/* Footer */}

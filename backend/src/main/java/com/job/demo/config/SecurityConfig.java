@@ -37,40 +37,85 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+
         http
-                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-                .csrf(AbstractHttpConfigurer::disable)
-                .authorizeHttpRequests(authorize -> authorize
-                // 1. USE EXPLICIT PATHS FIRST - Move these to the absolute top
+            // CORS
+            .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+
+            // Disable CSRF for API + OAuth redirect
+            .csrf(AbstractHttpConfigurer::disable)
+
+            // Authorization rules
+            .authorizeHttpRequests(authorize -> authorize
+
+                // ✅ Public job APIs
                 .requestMatchers(HttpMethod.GET, "/api/jobs").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/jobs/**").permitAll()
-                // 2. Auth and Public Resources
-                .requestMatchers("/api/auth/**", "/login", "/register", "/uploads/**").permitAll()
-                // 3. All other requests must be authenticated
+
+                // ✅ Google OAuth + Auth endpoints (FIX)
+                .requestMatchers(
+                        "/auth/**",
+                        "/api/auth/**",
+                        "/login",
+                        "/register",
+                        "/uploads/**"
+                ).permitAll()
+
+                // Everything else requires authentication
                 .anyRequest().authenticated()
+            )
+
+            // Return 401 instead of redirecting to login page
+            .exceptionHandling(e ->
+                e.authenticationEntryPoint(
+                        new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)
                 )
-                .exceptionHandling(e -> e
-                .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED))
-                )
-                // Ensure formLogin doesn't interfere with API 401s
-                .formLogin(AbstractHttpConfigurer::disable);
+            )
+
+            // Disable default form login (API-only app)
+            .formLogin(AbstractHttpConfigurer::disable);
 
         return http.build();
     }
 
+    // ===================== CORS =====================
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        // Ensure both development ports are allowed
-        configuration.setAllowedOrigins(List.of("http://localhost:5173", "http://localhost:3000"));
-        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+
+        configuration.setAllowedOrigins(
+                List.of("http://localhost:5173", "http://localhost:3000")
+        );
+        configuration.setAllowedMethods(
+                List.of("GET", "POST", "PUT", "DELETE", "OPTIONS")
+        );
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+
+        UrlBasedCorsConfigurationSource source =
+                new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;
     }
 
+    // ===================== AUTH =====================
+    @Bean
+    public AuthenticationProvider authenticationProvider() {
+        DaoAuthenticationProvider authProvider =
+                new DaoAuthenticationProvider();
+        authProvider.setUserDetailsService(customUserDetailsService);
+        authProvider.setPasswordEncoder(passwordEncoder);
+        return authProvider;
+    }
+
+    @Bean
+    public AuthenticationManager authenticationManager(
+            AuthenticationConfiguration config
+    ) throws Exception {
+        return config.getAuthenticationManager();
+    }
+
+    // ===================== OPTIONAL (API LOGIN) =====================
     @Bean
     public AuthenticationSuccessHandler successHandler() {
         return (request, response, authentication) -> {
@@ -87,18 +132,5 @@ public class SecurityConfig {
             response.setContentType("application/json");
             response.getWriter().write("{\"error\": \"Invalid credentials\"}");
         };
-    }
-
-    @Bean
-    public AuthenticationProvider authenticationProvider() {
-        DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider();
-        authProvider.setUserDetailsService(customUserDetailsService);
-        authProvider.setPasswordEncoder(passwordEncoder);
-        return authProvider;
-    }
-
-    @Bean
-    public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
-        return config.getAuthenticationManager();
     }
 }
