@@ -10,29 +10,140 @@ import SkeletonCard from "@/components/SkeletonCard";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import logo from "@/assets/logo.png";
-import { cn } from "@/lib/utils";
 import { Job } from "@/types/jobs";
-import { mockJobs } from "@/constant";
 
-/** ✅ Main Feed Component */
+/* ---------------------------------------------------------
+   API CONFIG
+--------------------------------------------------------- */
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8096";
+
+/* ---------------------------------------------------------
+   TYPES
+--------------------------------------------------------- */
+interface JobFullDescription {
+  category: string;
+  stipend: string;
+  duration: string;
+  workMode: string;
+  description: string[];
+  requirements: string[];
+}
+
+interface ApiJob
+  extends Omit<Job, "benefits" | "qualifications" | "fullDescription"> {
+  benefits: string;
+  qualifications: string;
+  fullDescription: string;
+}
+
+/* ---------------------------------------------------------
+   HELPERS
+--------------------------------------------------------- */
+/**
+ * Safely parses JSON strings from the backend. 
+ * If the DB contains plain text instead of JSON, it catches the error 
+ * and uses the fallback value to prevent the app from crashing.
+ */
+const safeJsonParse = <T,>(value: string | T, fallback: T, fieldName: string): T => {
+  if (typeof value !== "string") return value;
+  if (!value || value === "null") return fallback;
+  try {
+    return JSON.parse(value) as T;
+  } catch (err) {
+    console.warn(`⚠️ [JSON Parse Error] Field "${fieldName}" failed to parse. Received:`, value);
+    return fallback;
+  }
+};
+
+/* ---------------------------------------------------------
+   FEED COMPONENT
+--------------------------------------------------------- */
 const Feed = () => {
   const navigate = useNavigate();
-  const [jobs] = useState<Job[]>(mockJobs);
+
+  // State Management
+  const [jobs, setJobs] = useState<Job[]>([]);
   const [displayedJobs, setDisplayedJobs] = useState<Job[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
+
+  // Infinite Scroll Hook
   const { ref: loadMoreRef, inView } = useInView({ threshold: 0.6 });
   const mountedRef = useRef(false);
 
-  // Initial load
+  /* ---------------------------------------------------------
+     FETCH JOBS (AUTO RUN ON MOUNT)
+  --------------------------------------------------------- */
   useEffect(() => {
-    setDisplayedJobs(jobs.slice(0, 2));
-    mountedRef.current = true;
-  }, [jobs]);
+    const fetchJobs = async () => {
+      try {
+        setIsLoading(true);
+        console.log("🚀 [Step 1] Triggering n8n external fetch via Backend...");
+        
+        // 1. Sync data from n8n to Database
+        const syncRes = await fetch(`${API_URL}/api/jobs/fetch-external`);
+        console.log("📡 [Sync Request Status]:", syncRes.status);
 
-  // Infinite scroll
+        if (syncRes.status === 401) {
+          console.error("⛔ [Auth Error] 401 Unauthorized. Check SecurityConfig.java permitAll rules.");
+        }
+
+        // 2. Load the newly synced jobs from the Database
+        console.log("🚀 [Step 2] Fetching list from local database...");
+        const response = await fetch(`${API_URL}/api/jobs`);
+        
+        if (!response.ok) {
+          console.error("❌ [HTTP Error] Jobs fetch failed with status:", response.status);
+          throw new Error(`Failed to fetch jobs: ${response.status}`);
+        }
+
+        const rawData = (await response.json()) as ApiJob[];
+        console.log("📦 [Raw Data Received from DB]:", rawData);
+
+        if (!Array.isArray(rawData) || rawData.length === 0) {
+          console.warn("⚠️ [Data Warning] No jobs returned from database.");
+        }
+
+        // 3. Map and Parse JSON strings
+        const parsedData: Job[] = rawData.map((job, index) => ({
+          ...job,
+          benefits: safeJsonParse<string[]>(job.benefits, [], `job[${index}].benefits`),
+          qualifications: safeJsonParse<string[]>(job.qualifications, [], `job[${index}].qualifications`),
+          fullDescription: safeJsonParse<JobFullDescription>(
+            job.fullDescription,
+            {
+              category: "",
+              stipend: "",
+              duration: "",
+              workMode: "",
+              description: [],
+              requirements: [],
+            },
+            `job[${index}].fullDescription`
+          ),
+        }));
+
+        console.log("✅ [Final Parsed Data Ready for UI]:", parsedData);
+        setJobs(parsedData);
+        setDisplayedJobs(parsedData.slice(0, 5));
+        mountedRef.current = true;
+
+      } catch (error) {
+        console.error("🔴 [Critical Component Error]:", error);
+        toast.error("Could not load jobs from server.");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchJobs();
+  }, []);
+
+  /* ---------------------------------------------------------
+     INFINITE SCROLL LOGIC
+  --------------------------------------------------------- */
   useEffect(() => {
     if (!mountedRef.current) return;
     if (inView && !isLoading && displayedJobs.length < jobs.length) {
@@ -43,35 +154,32 @@ const Feed = () => {
 
   const loadMoreJobs = () => {
     setIsLoading(true);
+    console.log("🔄 Loading next batch of 5 jobs...");
     setTimeout(() => {
       const nextBatch = jobs.slice(
         displayedJobs.length,
-        displayedJobs.length + 2
+        displayedJobs.length + 5
       );
       setDisplayedJobs((prev) => [...prev, ...nextBatch]);
       setIsLoading(false);
     }, 600);
   };
 
-  /** ✅ Swipe, Save & Modal Logic */
+  /* ---------------------------------------------------------
+     USER ACTIONS
+  --------------------------------------------------------- */
   const handleSwipe = (job: Job, direction: "left" | "right") => {
     if (direction === "right") {
       setShowConfetti(true);
-      toast.success(`Applied to ${job.title}!`, {
-        description: "Your application is being processed.",
-      });
+      toast.success(`Applied to ${job.title}!`);
       setTimeout(() => setShowConfetti(false), 2500);
-      // TODO: call apply API
     } else {
       toast.info("Job skipped.");
     }
   };
 
   const handleSave = (job: Job) => {
-    toast.success(`Saved ${job.title}`, {
-      description: "You can find it in your saved jobs.",
-    });
-    // TODO: persist saved job
+    toast.success(`Saved ${job.title}`);
   };
 
   const handleViewDetails = (job: Job) => {
@@ -79,52 +187,29 @@ const Feed = () => {
     setModalOpen(true);
   };
 
-  const handleModalApply = () => {
-    if (selectedJob) {
-      handleSwipe(selectedJob, "right");
-      setModalOpen(false);
-    }
-  };
-
-  const handleModalSave = () => {
-    if (selectedJob) handleSave(selectedJob);
-  };
-
-  // Safe confetti dimensions
-  const confettiSize = (() => {
-    if (typeof window === "undefined") return { w: 360, h: 640 };
-    return { w: window.innerWidth, h: window.innerHeight };
-  })();
-
+  /* ---------------------------------------------------------
+     UI RENDER
+  --------------------------------------------------------- */
   return (
     <div className="min-h-screen bg-surface pb-safe-6">
-      {/* Header */}
-      <header className="sticky top-0 z-50 backdrop-blur-sm border-b bg-white/60 dark:bg-black/60">
-        <div className="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
+      {/* STICKY HEADER */}
+      <header className="sticky top-0 z-50 backdrop-blur-sm border-b bg-white/60">
+        <div className="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <img src={logo} alt="SwipeHire" className="w-8 h-8" />
             <h1 className="text-lg font-semibold">Discover Jobs</h1>
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => navigate("/settings")}
-            aria-label="Settings"
-          >
+          <Button variant="ghost" size="icon" onClick={() => navigate("/settings")}>
             <Settings className="h-5 w-5" />
           </Button>
         </div>
       </header>
 
-      {/* Main Feed */}
+      {/* FEED CONTENT */}
       <main className="max-w-2xl mx-auto px-4 py-6">
         <div className="space-y-4">
           {displayedJobs.map((job, index) => (
-            <div
-              key={job.id}
-              className="animate-fade-in"
-              style={{ animationDelay: `${index * 0.05}s` }}
-            >
+            <div key={job.id || `job-${index}`} style={{ animationDelay: `${index * 0.05}s` }}>
               <JobCard
                 job={job}
                 onSwipe={(direction) => handleSwipe(job, direction)}
@@ -134,76 +219,56 @@ const Feed = () => {
             </div>
           ))}
 
+          {/* SKELETON LOADERS */}
           {isLoading && (
-            <div className="space-y-4">
+            <>
               <SkeletonCard />
               <SkeletonCard />
-            </div>
+            </>
           )}
 
-          {/* Infinite Scroll Trigger */}
+          {/* INFINITE SCROLL TARGET */}
           {displayedJobs.length < jobs.length && (
-            <div ref={loadMoreRef} className="h-16 flex items-center justify-center">
-              <p className="text-sm text-muted-foreground">Loading more jobs...</p>
+            <div ref={loadMoreRef} className="h-16 flex justify-center items-center">
+              <p className="text-sm text-muted-foreground">Loading more jobs…</p>
             </div>
           )}
 
-          {/* All Caught Up */}
-          {displayedJobs.length >= jobs.length && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, ease: "easeOut" }}
-              className="text-center py-14 sm:py-20 px-6"
+          {/* EMPTY STATES */}
+          {displayedJobs.length >= jobs.length && jobs.length > 0 && (
+            <motion.div 
+              initial={{ opacity: 0 }} 
+              animate={{ opacity: 1 }} 
+              className="text-center py-20"
             >
-              <div
-                className={cn(
-                  "w-16 h-16 sm:w-20 sm:h-20 mx-auto mb-6 rounded-full",
-                  "bg-gradient-to-br from-primary/90 to-accent/90 flex items-center justify-center",
-                  "shadow-[0_0_25px_-5px_rgba(var(--primary-rgb),0.4)]"
-                )}
-              >
-                <CheckCircle2 className="w-8 h-8 sm:w-10 sm:h-10 text-white drop-shadow-md" />
-              </div>
-
-              <h2 className="text-xl sm:text-2xl font-semibold mb-3 text-foreground tracking-tight">
-                You’re All Caught Up
-              </h2>
-              <p className="text-sm sm:text-base text-muted-foreground max-w-md mx-auto mb-8 leading-relaxed">
-                You’ve seen all available job matches for now.
-                We’ll notify you when new opportunities appear.
-              </p>
-
-              <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4">
-                <Button
-                  size="lg"
-                  className="w-full sm:w-auto text-sm sm:text-base px-6 py-2 sm:py-3"
-                  onClick={() => navigate("/applications")}
-                >
-                  View My Applications
-                </Button>
-                <Button
-                  size="lg"
-                  variant="outline"
-                  className="w-full sm:w-auto text-sm sm:text-base px-6 py-2 sm:py-3"
-                  onClick={() => navigate("/settings")}
-                >
-                  Update Preferences
-                </Button>
-              </div>
+              <CheckCircle2 className="w-12 h-12 mx-auto text-green-500" />
+              <h2 className="text-xl font-semibold mt-4">You’re All Caught Up</h2>
             </motion.div>
+          )}
+
+          {jobs.length === 0 && !isLoading && (
+            <div className="text-center py-20">
+              <p className="text-muted-foreground">No jobs found in the database.</p>
+              <Button 
+                variant="link" 
+                onClick={() => window.location.reload()}
+              >
+                Try refreshing
+              </Button>
+            </div>
           )}
         </div>
       </main>
 
       <FilterButton />
 
+      {/* MODAL VIEW */}
       <JobDetailsModal
         job={selectedJob}
         open={modalOpen}
         onOpenChange={setModalOpen}
-        onApply={handleModalApply}
-        onSave={handleModalSave}
+        onApply={() => selectedJob && handleSwipe(selectedJob, "right")}
+        onSave={() => selectedJob && handleSave(selectedJob)}
       />
     </div>
   );

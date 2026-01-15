@@ -414,8 +414,8 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 
 **Anirudh Mishra**
 
-- GitHub: [@anirudhmishra](https://github.com/anirudhmishra)
-- Website: [swipehire.com](https://swipehire.com)
+- GitHub: [@anirudhxmishra](https://github.com/anirudhxmishra)
+- Website: [swipehire.com](https://swipehire.com)(comming soon)
 
 ---
 

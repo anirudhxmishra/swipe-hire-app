@@ -73,7 +73,7 @@ const Settings = () => {
           >
             <ArrowLeft className="h-5 w-5" />
           </Button>
-          <img src={logo} alt="SwipeHire" className="w-7 h-7 sm:w-8 sm:h-8" />
+          {/* <img src={logo} alt="SwipeHire" className="w-7 h-7 sm:w-8 sm:h-8" /> */}
           <h1 className="text-base sm:text-lg md:text-xl font-bold">Settings</h1>
         </div>
       </header>

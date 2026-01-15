@@ -5,6 +5,7 @@ import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
@@ -40,23 +41,19 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(authorize -> authorize
-                        // Allow public access to static uploads (photos/resumes)
-                        .requestMatchers("/uploads/**").permitAll()
-                        // Allow login and register
-                        .requestMatchers("/api/auth/**", "/login", "/register").permitAll()
-                        // Secure everything else
-                        .anyRequest().authenticated()
+                // 1. USE EXPLICIT PATHS FIRST - Move these to the absolute top
+                .requestMatchers(HttpMethod.GET, "/api/jobs").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/jobs/**").permitAll()
+                // 2. Auth and Public Resources
+                .requestMatchers("/api/auth/**", "/login", "/register", "/uploads/**").permitAll()
+                // 3. All other requests must be authenticated
+                .anyRequest().authenticated()
                 )
-                // PREVENT REDIRECT TO LOGIN PAGE ON ERROR
                 .exceptionHandling(e -> e
-                        .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED))
+                .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED))
                 )
-                .formLogin(form -> form
-                        .loginProcessingUrl("/login")
-                        .successHandler(successHandler())
-                        .failureHandler(failureHandler())
-                        .permitAll()
-                );
+                // Ensure formLogin doesn't interfere with API 401s
+                .formLogin(AbstractHttpConfigurer::disable);
 
         return http.build();
     }
@@ -64,12 +61,11 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        // Ensure this matches your frontend URL exactly
+        // Ensure both development ports are allowed
         configuration.setAllowedOrigins(List.of("http://localhost:5173", "http://localhost:3000"));
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);
-
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;
@@ -79,8 +75,8 @@ public class SecurityConfig {
     public AuthenticationSuccessHandler successHandler() {
         return (request, response, authentication) -> {
             response.setStatus(HttpStatus.OK.value());
+            response.setContentType("application/json");
             response.getWriter().write("{\"message\": \"Login successful\"}");
-            response.getWriter().flush();
         };
     }
 
@@ -88,8 +84,8 @@ public class SecurityConfig {
     public AuthenticationFailureHandler failureHandler() {
         return (request, response, exception) -> {
             response.setStatus(HttpStatus.UNAUTHORIZED.value());
+            response.setContentType("application/json");
             response.getWriter().write("{\"error\": \"Invalid credentials\"}");
-            response.getWriter().flush();
         };
     }
 
@@ -102,7 +98,7 @@ public class SecurityConfig {
     }
 
     @Bean
-    public AuthenticationManager authenticationManager(AuthenticationConfiguration authenticationConfiguration) throws Exception {
-        return authenticationConfiguration.getAuthenticationManager();
+    public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
+        return config.getAuthenticationManager();
     }
 }
