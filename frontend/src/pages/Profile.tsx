@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 // Import the helper functions and skills list
 import { skillSuggestions, getSocialIcon, getSocialLabel } from "../constant";
+import { useAuth } from "@/context/AuthContext";
 
 const API_BASE_URL = "http://localhost:8096";
 
@@ -51,12 +52,25 @@ interface UserProfile {
 }
 
 const Profile = () => {
+
   const navigate = useNavigate();
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeModal, setActiveModal] = useState<null | "profile" | "skills" | "links" | "resume" | "photo">(null);
   const [editData, setEditData] = useState<Partial<UserProfile>>({});
   const [newLinkInput, setNewLinkInput] = useState("");
+
+
+
+  //  Gkrrr Way for making authorization
+  const { isAuthenticated } = useAuth();
+
+  if (!isAuthenticated) {
+    toast.error("Please log in.");
+    navigate("/login");
+  }
+
+
 
   // === Fetch profile ===
   const fetchProfileData = async () => {
@@ -78,7 +92,7 @@ const Profile = () => {
     }
   };
 
-  useEffect(() => { fetchProfileData(); }, [navigate]);
+  // useEffect(() => { fetchProfileData(); }, [navigate]);
 
   // === Helper: Construct robust Image / file URL ===
   const getFullUrl = (path: string | undefined) => {

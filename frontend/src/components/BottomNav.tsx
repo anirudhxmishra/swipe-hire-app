@@ -1,5 +1,5 @@
 import { useNavigate, useLocation } from "react-router-dom";
-import { Home, Briefcase, MessageSquare, User } from "lucide-react";
+import { Home, Briefcase, MessageSquare, User, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface NavItem {
@@ -13,6 +13,7 @@ const navItems: NavItem[] = [
   { icon: Briefcase, label: "Applied", path: "/applications" },
   { icon: MessageSquare, label: "Alerts", path: "/notifications" },
   { icon: User, label: "Profile", path: "/profile" },
+    {icon:LogOut, label:"Logout", path:"/"}
 ];
 
 const BottomNav = () => {

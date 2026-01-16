@@ -1,12 +1,15 @@
+
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
-import { ArrowLeft, Bell, Moon, Brain, Lock } from "lucide-react";
+import { ArrowLeft, Bell, Moon, Brain, Lock, LogOut } from "lucide-react";
 import { toast } from "sonner";
 import logo from "@/assets/logo.png";
+import { useAuth } from "@/context/AuthContext";
+
 
 interface UserSettings {
   notifications: boolean;
@@ -18,6 +21,19 @@ interface UserSettings {
 
 const Settings = () => {
   const navigate = useNavigate();
+  const { isAuthenticated, logout } = useAuth();
+
+  const handleLogout = () => {
+    logout();
+    navigate("/login", { replace: true });
+  };
+
+  //REDIRECT IF NOT AUTHENTICATED (CORRECT PLACE)
+  useEffect(() => {
+    if (!isAuthenticated) {
+      navigate("/login", { replace: true });
+    }
+  }, [isAuthenticated, navigate]);
 
   // ✅ Load settings
   const [settings, setSettings] = useState<UserSettings>(() => {
@@ -209,6 +225,14 @@ const Settings = () => {
             />
           </div>
         </section>
+
+        <button
+          onClick={handleLogout}
+          className="flex items-center justify-center gap-3 px-8 py-4 bg-white text-red-600 font-semibold rounded-xl border-2 border-red-200 hover:bg-red-50 transition"
+        >
+          <LogOut className="w-5 h-5" />
+          Logout
+        </button>
 
         {/* Save / Cancel */}
         {/* <div className="flex flex-col sm:flex-row gap-3 justify-end mt-8">
