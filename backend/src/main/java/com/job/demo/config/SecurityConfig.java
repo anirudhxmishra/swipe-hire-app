@@ -43,7 +43,7 @@ public class SecurityConfig {
                         // Allow public access to static uploads (photos/resumes)
                         .requestMatchers("/uploads/**").permitAll()
                         // Allow login and register
-                        .requestMatchers("/api/auth/**", "/login", "/register").permitAll()
+                        .requestMatchers("/api/auth/**","/oauth2/**", "/login", "/register").permitAll()
                         // Secure everything else
                         .anyRequest().authenticated()
                 )
@@ -56,6 +56,9 @@ public class SecurityConfig {
                         .successHandler(successHandler())
                         .failureHandler(failureHandler())
                         .permitAll()
+                )
+                .oauth2Login(oauth -> oauth
+                    .defaultSuccessUrl("http://localhost:5173/feed", true)
                 );
 
         return http.build();
