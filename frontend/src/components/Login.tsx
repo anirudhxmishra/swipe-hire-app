@@ -117,27 +117,32 @@ const Login = () => {
       setLoading(false);
     }
   };
-  
-  const handleGoogleLogin = (response: CredentialResponse) => {
-    try {
-      if (!response.credential) throw new Error("Missing Google credential");
-      const decoded = jwtDecode<GoogleUser>(response.credential);
-      const user = {
-        id: decoded.sub || "unknown",
-        name: decoded.name || "User",
-        email: decoded.email || "unknown",
-        avatar: decoded.picture,
-      };
-      handleLoginSuccess(response.credential, user);
-      toast.success(`Welcome back, ${user.name}!`);
-      
-      const hasOnboarded = localStorage.getItem("onboarding_completed");
-      navigate(hasOnboarded ? "/feed" : "/onboarding");
-    } catch (err) {
-      console.error("Google login error:", err);
-      toast.error("Google login failed. Please try again.");
-    }
+  const handleGoogleLogin = () => {
+    window.location.href = "http://localhost:8096/oauth2/authorization/google";
   };
+  
+  //   const handleGoogleLogin = (response: CredentialResponse) => {
+  //   try {
+  //     if (!response.credential) throw new Error("Missing Google credential");
+  //     const decoded = jwtDecode<GoogleUser>(response.credential);
+  //     const user = {
+  //       id: decoded.sub || "unknown",
+  //       name: decoded.name || "User",
+  //       email: decoded.email || "unknown",
+  //       avatar: decoded.picture,
+  //     };
+  //     handleLoginSuccess(response.credential, user);
+  //     toast.success(`Welcome back, ${user.name}!`);
+      
+  //     const hasOnboarded = localStorage.getItem("onboarding_completed");
+  //     navigate(hasOnboarded ? "/feed" : "/onboarding");
+  //   } catch (err) {
+  //     console.error("Google login error:", err);
+  //     toast.error("Google login failed. Please try again.");
+  //   }
+  // };
+
+
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4 sm:px-5 py-8 gradient-subtle">
@@ -248,12 +253,13 @@ const Login = () => {
 
           {/* Google Login */}
           <div className="flex justify-center mt-4">
-            <GoogleLogin
-              onSuccess={handleGoogleLogin}
-              onError={() => toast.error("Google login failed")}
-              shape="pill"
-              width="280"
-            />
+            <Button
+              variant="outline"
+              className="w-full flex items-center gap-2"
+              onClick={handleGoogleLogin}
+            >
+              Continue with Google
+            </Button>
           </div>
 
           {/* Footer */}
